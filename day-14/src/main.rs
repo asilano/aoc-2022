@@ -1,4 +1,4 @@
-use std::{fs, collections::HashMap};
+use std::{fs, collections::HashMap, time::SystemTime};
 
 use regex::Regex;
 
@@ -106,6 +106,45 @@ fn part_two(arena: &mut Arena, max_y: usize) -> usize {
 
     arena.iter().filter(|(_, &c)| c == 'o').count()
 }
+fn part_two_dynamic(arena: &mut Arena, max_y: usize) -> usize {
+    let mut last_path: Vec<(usize, usize)> = vec![(500,0)];
+    let mut carry_on = true;
+    while carry_on {
+        let mut x = last_path.last().unwrap().0;
+        let mut y = last_path.last().unwrap().1;
+        loop {
+            if !arena.contains_key(&(x, y+1)) && y != max_y + 1{
+                // Drop down
+                y += 1;
+            } else if !arena.contains_key(&(x-1, y+1)) && y != max_y + 1{
+                // Drop left
+                x -= 1;
+                y += 1;
+            } else if !arena.contains_key(&(x+1, y+1)) && y != max_y + 1{
+                // Drop right
+                x += 1;
+                y += 1;
+            } else {
+                arena.insert((x, y), 'o');
+                last_path.pop();
+                if (x,y) == (500, 0) { carry_on = false; assert!(last_path.is_empty()); }
+                break;
+            }
+
+            last_path.push((x, y));
+        }
+    }
+
+    arena.iter().filter(|(_, &c)| c == 'o').count()
+}
+fn timeit<F: Fn() -> T, T>(f: F) -> T {
+  let start = SystemTime::now();
+  let result = f();
+  let end = SystemTime::now();
+  let duration = end.duration_since(start).unwrap();
+  println!("it took {} milliseconds", duration.as_millis());
+  result
+}
 fn main() {
     let data = load_data();
     let (mut arena, (min_x, max_x), max_y) = parse_map(&data);
@@ -123,7 +162,9 @@ fn main() {
 //    }
     println!("Part one {}", count);
 
-    let count = part_two(&mut arena, max_y);
+    let count = timeit(|| part_two(&mut arena.clone(), max_y));
     println!("Part two {}", count);
+    let count = timeit(|| part_two_dynamic(&mut arena.clone(), max_y));
+    println!("Part two dynamic {}", count);
 }
 
