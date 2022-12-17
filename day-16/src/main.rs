@@ -11,8 +11,9 @@ struct Node {
     adjacency: Vec<String>
 }
 type Network = HashMap<String, Node>;
+type DistTable = HashMap<String, HashMap<String, u32>>;
 
-fn parse_data(data: &String) -> Network {
+fn parse_data(data: &String) -> (Network, DistTable) {
     let mut network = Network::new();
 
     let rex = Regex::new(r"^Valve (\w+) has flow rate=(\d+); tunnels? leads? to valves? ([\w, ]+)$").unwrap();
@@ -30,19 +31,39 @@ fn parse_data(data: &String) -> Network {
         });
     }
 
-    network
+    let mut dist_table = DistTable::new();
+    for label in network.keys() {
+	    let mut dists = HashMap::<String, u32>::new();
+	    dists.insert(label.clone(), 1);
+	    let mut searchfront = VecDeque::<(String, u32)>::new();
+	    searchfront.push_back((label.clone(), 1));
+	
+	    while !searchfront.is_empty() {
+	        let (examine, dist) = searchfront.pop_front().unwrap();
+	        let examine_node = network.get(&examine).unwrap();
+	        examine_node.adjacency.iter().for_each(|adj| {
+	            if !dists.contains_key(adj) {
+	                dists.insert(adj.clone(), dist + 1);
+	                searchfront.push_back((adj.clone(), dist + 1));
+	            }
+	        });
+	    }
+        dist_table.insert(label.clone(), dists);
+    }
+   
+    (network, dist_table)
 }
 
-fn part_one(network: &Network) -> u32 {
+fn part_one(network: &Network, dist_table: &DistTable) -> u32 {
     let mut best_pressure = 0u32;
     let mut current_pressure = 0u32;
     let mut valves_on = Vec::<String>::new();
 
-    visit(network, "AA".to_string(), &mut valves_on, 30, 0, &mut current_pressure, &mut best_pressure);
+    visit(network, dist_table, "AA".to_string(), &mut valves_on, 30, 0, &mut current_pressure, &mut best_pressure);
     best_pressure
 }
 
-fn visit(network: &Network, label: String, valves_on: &mut Vec<String>, timeout: u32, tick: u32, current_pressure: &mut u32, best_pressure: &mut u32) {
+fn visit(network: &Network, dist_table: &DistTable, label: String, valves_on: &mut Vec<String>, timeout: u32, tick: u32, current_pressure: &mut u32, best_pressure: &mut u32) {
     if tick >= timeout {
         return;
     }
@@ -51,40 +72,67 @@ fn visit(network: &Network, label: String, valves_on: &mut Vec<String>, timeout:
     *current_pressure += here.pressure * (timeout - tick);
     valves_on.push(label.clone());
     if current_pressure > best_pressure {
-        println!("{:?}", valves_on);
+        //println!("{:?}", valves_on);
     }
     *best_pressure = max(*best_pressure, *current_pressure);
     
-    let mut dists = HashMap::<String, u32>::new();
-    dists.insert(label.clone(), 1);
-    let mut searchfront = VecDeque::<(String, u32)>::new();
-    searchfront.push_back((label.clone(), 1));
-
-    while !searchfront.is_empty() {
-        let (examine, dist) = searchfront.pop_front().unwrap();
-        let examine_node = network.get(&examine).unwrap();
-        examine_node.adjacency.iter().for_each(|adj| {
-            if !dists.contains_key(adj) {
-                dists.insert(adj.clone(), dist + 1);
-                searchfront.push_back((adj.clone(), dist));
-            }
-        });
-    }
-   
+    let dists = dist_table.get(&label).unwrap();
     let valves_clone = valves_on.clone();
-    network.keys().filter(|adj| !valves_clone.contains(adj)).for_each(|adj| {
-        let dist = dists.get(adj).unwrap();
-        visit(network, adj.clone(), valves_on, timeout, tick + *dist, current_pressure, best_pressure); 
+    network.iter().filter(|(lbl, adj)| adj.pressure > 0 && !valves_clone.contains(lbl)).for_each(|(lbl, _)| {
+        let dist = dists.get(lbl).unwrap();
+        visit(network, dist_table, lbl.clone(), valves_on, timeout, tick + *dist, current_pressure, best_pressure); 
     });
 
     *current_pressure -= here.pressure * (timeout - tick);
     valves_on.pop();
 }
 
+fn part_two(network: &Network, dist_table: &DistTable) -> u32 {
+    let mut best_pressure = 0u32;
+    let mut current_pressure = 0u32;
+    let mut valves_on = vec!["AA".to_string()];
+
+    let queue = (("AA".to_string(), 0, "Me".to_string()), ("AA".to_string(), 0, "Ele".to_string()));
+
+    visit_queue(network, dist_table, queue, &mut valves_on, 26, &mut current_pressure, &mut best_pressure);
+    best_pressure
+}
+
+fn visit_queue(network: &Network, dist_table: &DistTable, queue: ((String, u32, String), (String, u32, String)), valves_on: &mut Vec<String>, timeout: u32, current_pressure: &mut u32, best_pressure: &mut u32) {
+    if queue.0.1 >= timeout {
+        return;
+    }
+    let (move_now, move_later) = queue;
+    let (label, tick, who) = move_now;
+    let here = network.get(&label).unwrap();
+    *current_pressure += here.pressure * (timeout - tick);
+    *best_pressure = max(*best_pressure, *current_pressure);
+    
+    let dists = dist_table.get(&label).unwrap();
+    let valves_clone = valves_on.clone();
+    network.iter().filter(|(lbl, adj)| adj.pressure > 0 && !valves_clone.contains(lbl)).for_each(|(lbl, _)| {
+        let dist = dists.get(lbl).unwrap();
+        let nows_next_tick = tick + dist;
+        let nows_next = (lbl.clone(), nows_next_tick, who.clone());
+        let next_queue = if nows_next_tick < move_later.1 {
+            (nows_next, move_later.clone())
+        } else {
+            (move_later.clone(), nows_next)
+        };
+        valves_on.push(lbl.clone());
+        visit_queue(network, dist_table, next_queue, valves_on, timeout, current_pressure, best_pressure); 
+        valves_on.pop();
+    });
+   
+    *current_pressure -= here.pressure * (timeout - tick);
+}
+
 fn main() {
     let data = load_data();
-    let network = parse_data(&data);
+    let (network, dist_table) = parse_data(&data);
 
-    let pressure = part_one(&network);
+    let pressure = part_one(&network, &dist_table);
     println!("Part one: {}", pressure);
+    let pressure = part_two(&network, &dist_table);
+    println!("Part two: {}", pressure);
 }
