@@ -99,32 +99,40 @@ fn part_two(network: &Network, dist_table: &DistTable) -> u32 {
 }
 
 fn visit_queue(network: &Network, dist_table: &DistTable, queue: ((String, u32, String), (String, u32, String)), valves_on: &mut Vec<String>, timeout: u32, current_pressure: &mut u32, best_pressure: &mut u32) {
-    if queue.0.1 >= timeout {
+    if queue.0.1 >= timeout && queue.1.1 >= timeout {
+        return;
+    }
+    if *current_pressure + network.iter().filter(|(lbl, _)| !valves_on.contains(lbl)).map(|(_, node)| node.pressure * (timeout - queue.0.1)).sum::<u32>() < *best_pressure {
         return;
     }
     let (move_now, move_later) = queue;
     let (label, tick, who) = move_now;
     let here = network.get(&label).unwrap();
+    valves_on.push(label.clone());
     *current_pressure += here.pressure * (timeout - tick);
+    if current_pressure > best_pressure { println!("...{}", current_pressure); }
     *best_pressure = max(*best_pressure, *current_pressure);
     
     let dists = dist_table.get(&label).unwrap();
     let valves_clone = valves_on.clone();
-    network.iter().filter(|(lbl, adj)| adj.pressure > 0 && !valves_clone.contains(lbl)).for_each(|(lbl, _)| {
+    network.iter().filter(|(lbl, adj)| adj.pressure > 0 && !valves_clone.contains(lbl) && **lbl != move_later.0).for_each(|(lbl, _)| {
         let dist = dists.get(lbl).unwrap();
         let nows_next_tick = tick + dist;
-        let nows_next = (lbl.clone(), nows_next_tick, who.clone());
-        let next_queue = if nows_next_tick < move_later.1 {
-            (nows_next, move_later.clone())
-        } else {
-            (move_later.clone(), nows_next)
-        };
-        valves_on.push(lbl.clone());
-        visit_queue(network, dist_table, next_queue, valves_on, timeout, current_pressure, best_pressure); 
-        valves_on.pop();
+        if nows_next_tick <= timeout {
+            let nows_next = (lbl.clone(), nows_next_tick, who.clone());
+            let next_queue = if nows_next_tick < move_later.1 {            
+                (nows_next, move_later.clone())
+            } else {
+                (move_later.clone(), nows_next)
+            };
+            visit_queue(network, dist_table, next_queue, valves_on, timeout, current_pressure, best_pressure); 
+        }
     });
+    let next_queue = (move_later.clone(), ("XXX".to_string(), timeout + 10, who));
+    visit_queue(network, dist_table, next_queue, valves_on, timeout, current_pressure, best_pressure); 
    
     *current_pressure -= here.pressure * (timeout - tick);
+    valves_on.pop();
 }
 
 fn main() {
