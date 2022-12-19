@@ -83,7 +83,7 @@ fn part_two(data: &String) -> usize {
     let mut rocks = RockType::cycle();
     let mut fallen = HashSet::<(usize, usize)>::new();
     let mut pinnacle = 0usize;
-    let mut highest_floor = 0usize;
+    let mut skipped_dist = 0usize;
     let mut jet_ix: usize;
     let mut rock_count = 0;
     let mut skipped = false;
@@ -120,52 +120,35 @@ fn part_two(data: &String) -> usize {
                 break;
             }
         }
-// if rock_count == 78 || rock_count == 113 {
-//     println!("Rock {}, jet {}", rock_count, jet_ix);
-//     for y in (pinnacle-10..=pinnacle).rev() {
-//         for x in 1..=7 {
-//             if fallen.contains(&(x, y)) { print!("#") } else { print!(" ") }
-//         }
-//         println!("");
-//     }
-//     println!("");
-// }
 
         if !skipped {
-            let mut new_highest_floor = highest_floor;
-        for y in 0..=pinnacle {
-            if [1usize,2,3,4,5,6,7].iter().all(|&x| fallen.contains(&(x, y)) || fallen.contains(&(x, y + 1))) {
-                // Collect a vector of fallen blocks above the new floor level, as if the new floor
-                // were 0.
-                let mut above_floor = fallen.iter().filter(|&(_,fally)| *fally > y).map(|&(fallx, fally)| (fallx, fally - y)).collect::<Vec<(usize, usize)>>();
-                above_floor.sort();
-                // Store and compare states - shape above false floor, index in jet array, rock
-                // type; store the last height this floor was seen at, and how many rocks had
-                // fallen
-                let key = (above_floor.clone(), jet_ix, *rock);
-                if let Some((floor_height, seen_at_count)) = visited_positions.get(&key) {
-                    let repeat_dist = highest_floor + y - floor_height;
-                    let rocks_to_go = 1000000000000usize - rock_count;
-                    let rocks_between = rock_count - seen_at_count;
-                    let iterations = rocks_to_go / rocks_between;
+            for y in 0..=pinnacle {
+                if [1usize,2,3,4,5,6,7].iter().all(|&x| fallen.contains(&(x, y)) || fallen.contains(&(x, y + 1))) {
+                    // Collect a vector of fallen blocks above the new floor level, as if the new floor
+                    // were 0.
+                    let mut above_floor = fallen.iter().filter(|&(_,fally)| *fally >= y).map(|&(fallx, fally)| (fallx, fally - y)).collect::<Vec<(usize, usize)>>();
+                    above_floor.sort();
+                    // Store and compare states - shape above false floor, index in jet array, rock
+                    // type; store the last height this floor was seen at, and how many rocks had
+                    // fallen
+                    let key = (above_floor.clone(), jet_ix, *rock);
+                    if let Some((floor_height, seen_at_count)) = visited_positions.get(&key) {
+                        let repeat_dist = y - floor_height;
+                        let rocks_to_go = 1000000000000usize - rock_count;
+                        let rocks_between = rock_count - seen_at_count;
+                        let iterations = rocks_to_go / rocks_between;
 
-                    rock_count += rocks_between * iterations;
-                    new_highest_floor = floor_height + repeat_dist * iterations;
-                    pinnacle = y;
-                    fallen = above_floor.iter().map(|&(xx,yy)| (xx,yy)).collect();
-                    visited_positions.insert(key, (new_highest_floor, rock_count));
-                    skipped = true;
-                } else {
-                    visited_positions.insert(key, (highest_floor + y, rock_count));
-                    new_highest_floor = highest_floor + y;
-                    fallen = above_floor.iter().map(|&(xx,yy)| (xx,yy)).collect();
+                        rock_count += rocks_between * iterations;
+                        skipped_dist = repeat_dist * iterations;
+                        skipped = true;
+                    } else {
+                        visited_positions.insert(key, (y, rock_count));
+                   }
                 }
             }
         }
-        highest_floor = new_highest_floor;
-        }
     }
-    pinnacle + highest_floor
+    pinnacle + skipped_dist
 }
 
 fn main() {
