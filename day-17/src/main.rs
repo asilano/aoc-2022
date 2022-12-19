@@ -24,7 +24,7 @@ impl RockType {
             Horiz => 5,
             Plus | Jay => 6,
             Vert => 8,
-            Square => 7            
+            Square => 7
         };
         position.0 <= 0 || position.0 >= right_limit || position.1 <= 0 || self.cells(position).iter().any(|c| fallen.contains(c))
     }
@@ -56,10 +56,10 @@ fn part_one(data: &String) -> usize {
                 '>' => (pos.0 + 1, pos.1),
                 _ => { println!("{:?}", jet); unreachable!() }
             };
-    
+
             if !rock.collision(&tentative_pos, &fallen) {
                 pos = tentative_pos;
-            
+
             }
             // Drop
             let tentative_pos = (pos.0, pos.1 - 1);
@@ -103,10 +103,10 @@ fn part_two(data: &String) -> usize {
                 '>' => (pos.0 + 1, pos.1),
                 _ => { println!("{:?}", jet); unreachable!() }
             };
-    
+
             if !rock.collision(&tentative_pos, &fallen) {
                 pos = tentative_pos;
-            
+
             }
             // Drop
             let tentative_pos = (pos.0, pos.1 - 1);
@@ -120,14 +120,25 @@ fn part_two(data: &String) -> usize {
                 break;
             }
         }
+// if rock_count == 78 || rock_count == 113 {
+//     println!("Rock {}, jet {}", rock_count, jet_ix);
+//     for y in (pinnacle-10..=pinnacle).rev() {
+//         for x in 1..=7 {
+//             if fallen.contains(&(x, y)) { print!("#") } else { print!(" ") }
+//         }
+//         println!("");
+//     }
+//     println!("");
+// }
 
         if !skipped {
+            let mut new_highest_floor = highest_floor;
         for y in 0..=pinnacle {
-            if [1usize,2,3,4,5,6,7].iter().all(|&x| fallen.contains(&(x, y))) {
+            if [1usize,2,3,4,5,6,7].iter().all(|&x| fallen.contains(&(x, y)) || fallen.contains(&(x, y + 1))) {
                 // Collect a vector of fallen blocks above the new floor level, as if the new floor
                 // were 0.
-                let above_floor = fallen.iter().filter(|&(_,fally)| *fally > y).map(|&(fallx, fally)| (fallx, fally - y)).collect::<Vec<(usize, usize)>>();
-                
+                let mut above_floor = fallen.iter().filter(|&(_,fally)| *fally > y).map(|&(fallx, fally)| (fallx, fally - y)).collect::<Vec<(usize, usize)>>();
+                above_floor.sort();
                 // Store and compare states - shape above false floor, index in jet array, rock
                 // type; store the last height this floor was seen at, and how many rocks had
                 // fallen
@@ -137,18 +148,22 @@ fn part_two(data: &String) -> usize {
                     let rocks_to_go = 1000000000000usize - rock_count;
                     let rocks_between = rock_count - seen_at_count;
                     let iterations = rocks_to_go / rocks_between;
-                    
+
                     rock_count += rocks_between * iterations;
-                    highest_floor = floor_height + repeat_dist * iterations;
-                    pinnacle = 0;
+                    new_highest_floor = floor_height + repeat_dist * iterations;
+                    pinnacle = y;
                     fallen = above_floor.iter().map(|&(xx,yy)| (xx,yy)).collect();
-                    visited_positions.insert(key, (highest_floor, rock_count));
+                    visited_positions.insert(key, (new_highest_floor, rock_count));
                     skipped = true;
                 } else {
-                    visited_positions.insert(key, (y, rock_count));
+                    visited_positions.insert(key, (highest_floor + y, rock_count));
+                    new_highest_floor = highest_floor + y;
+                    fallen = above_floor.iter().map(|&(xx,yy)| (xx,yy)).collect();
                 }
             }
-        }}
+        }
+        highest_floor = new_highest_floor;
+        }
     }
     pinnacle + highest_floor
 }
